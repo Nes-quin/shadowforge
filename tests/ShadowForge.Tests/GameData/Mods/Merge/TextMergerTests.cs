@@ -94,24 +94,25 @@ public sealed class TextMergerTests
     [Fact]
     public void Merge_EnemyRowChangedByTwoMods_NamesTheEnemyAndTheColumns()
     {
-        var names = GameNames.FromTables([], [UTF16("DeleteKey,ID,Name\r\n,em003,Big Poo\r\n")]);
-        byte[] stock = UTF16("No.,名前,HP\r\n003,大ウンチくん,2250\r\n");
+        var names = GameNames.FromTables([], [UTF16("DeleteKey,ID,Name\r\n,em003,Test Enemy\r\n")]);
+        const string Header = "No.,category,size,grid,name,race,level,hp\r\n";
+        byte[] stock = UTF16(Header + "003,1,S,,test,x,5,2250\r\n");
 
         var result = new FormatMergers(names).Merge("enemy_zako_new.u16", stock,
         [
-            new ModVersion("A", UTF16("No.,名前,HP\r\n003,大ウンチくん,3000\r\n")),
-            new ModVersion("B", UTF16("No.,名前,HP\r\n003,大ウンチくん,9999\r\n")),
+            new ModVersion("A", UTF16(Header + "003,1,S,,test,x,5,3000\r\n")),
+            new ModVersion("B", UTF16(Header + "003,1,S,,test,x,5,9999\r\n")),
         ]);
 
         var conflict = Assert.Single(result.Conflicts);
-        Assert.Equal("enemy em003 Big Poo", conflict.Location);
+        Assert.Equal("enemy em003 Test Enemy", conflict.Location);
         Assert.Equal(["HP 2250 -> 3000", "HP 2250 -> 9999"], conflict.Sides.Select(s => s.Value));
     }
 
     [Fact]
     public void Merge_ItemRowChangedByTwoMods_NamesTheItem()
     {
-        var names = GameNames.FromTables([UTF16("Medicine,やくそう\r\nMega Medicine,x\r\n")], []);
+        var names = GameNames.FromTables([UTF16("First Item,x\r\nSecond Item,x\r\n")], []);
         byte[] stock = UTF16("4,2,30\r\n4,2,100\r\n");
 
         var result = new FormatMergers(names).Merge("ItTb.u16", stock,
@@ -120,6 +121,6 @@ public sealed class TextMergerTests
             new ModVersion("B", UTF16("4,2,30\r\n4,2,75\r\n")),
         ]);
 
-        Assert.Equal("item 2 Mega Medicine", Assert.Single(result.Conflicts).Location);
+        Assert.Equal("item 2 Second Item", Assert.Single(result.Conflicts).Location);
     }
 }

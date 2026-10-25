@@ -10,7 +10,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// under download\ are served from the installed DLC packages, preferring the untouched .orig
 /// copy a package patch leaves beside them.
 /// </summary>
-public sealed class StockFiles(GameInstall install)
+internal sealed class StockFiles(GameInstall install)
 {
     private const string DownloadPrefix = @"download\";
 

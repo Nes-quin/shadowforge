@@ -6,7 +6,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// Splits one line of a game table into fields. A field wrapped in double quotes may hold commas,
 /// and a doubled quote inside it is one quote.
 /// </summary>
-public static class CsvFields
+internal static class CsvFields
 {
     public static List<string> Split(string line)
     {

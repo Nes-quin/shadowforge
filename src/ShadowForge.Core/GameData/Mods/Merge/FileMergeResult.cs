@@ -3,7 +3,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// <summary>
 /// One mod's copy of a file.
 /// </summary>
-public sealed record ModVersion(string Mod, byte[] Data);
+internal sealed record ModVersion(string Mod, byte[] Data);
 
 /// <summary>
 /// One mod's version of a contested unit, rendered for a report.
@@ -37,7 +37,7 @@ public sealed record FileMergeResult(
 /// <summary>
 /// Merges two or more mods' changed copies of one file against the shipped copy.
 /// </summary>
-public interface IFormatMerger
+internal interface IFormatMerger
 {
     /// <summary>
     /// How this merger combines a file, for reports.

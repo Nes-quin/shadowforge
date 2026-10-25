@@ -61,8 +61,8 @@ public sealed class EnemyPlacementTests
 
 public sealed class EnemyPlacementMergerTests
 {
-    private static readonly Formation Poo = new(5, [new Spawn(0x0000_0001, 1, 0)]);
-    private static readonly Formation Rat = new(5, [new Spawn(0x0000_003B, 1, 0)]);
+    private static readonly Formation SingleZako1 = new(5, [new Spawn(0x0000_0001, 1, 0)]);
+    private static readonly Formation SingleZako59 = new(5, [new Spawn(0x0000_003B, 1, 0)]);
 
     private static FileMergeResult Merge(Formation[] stock, params (string Mod, Formation[] Table)[] versions) =>
         new FormatMergers(GameNames.Empty).Merge("sc03_0001_01.etl", EnemyPlacement.Write(stock),
@@ -72,16 +72,16 @@ public sealed class EnemyPlacementMergerTests
     public void Merge_DifferentFormationsChanged_KeepsBoth()
     {
         var result = Merge([EnemyPlacementTests.Pair, EnemyPlacementTests.Boss],
-            ("A", [Poo, EnemyPlacementTests.Boss]), ("B", [EnemyPlacementTests.Pair, Rat]));
+            ("A", [SingleZako1, EnemyPlacementTests.Boss]), ("B", [EnemyPlacementTests.Pair, SingleZako59]));
 
         Assert.True(result.IsMerged);
-        Assert.Equal(EnemyPlacement.Write([Poo, Rat]), result.Data);
+        Assert.Equal(EnemyPlacement.Write([SingleZako1, SingleZako59]), result.Data);
     }
 
     [Fact]
     public void Merge_OneFormationChangedTwoWays_ConflictNamesTheEnemies()
     {
-        var result = Merge([EnemyPlacementTests.Pair], ("A", [Poo]), ("B", [Rat]));
+        var result = Merge([EnemyPlacementTests.Pair], ("A", [SingleZako1]), ("B", [SingleZako59]));
 
         var conflict = Assert.Single(result.Conflicts);
         Assert.Equal("formation 1", conflict.Location);

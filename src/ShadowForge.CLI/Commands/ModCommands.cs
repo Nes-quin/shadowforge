@@ -21,7 +21,7 @@ public static class ModCommands
         return cmd;
     }
 
-    private static Option<string?> ProfileOption() =>
+    internal static Option<string?> ProfileOption() =>
         new("--profile") { Description = "Profile whose mod_order.txt to target (default: 'default')." };
 
     private static Command BuildDeploy(Func<ParseResult, ILoggerFactory> getFactory)

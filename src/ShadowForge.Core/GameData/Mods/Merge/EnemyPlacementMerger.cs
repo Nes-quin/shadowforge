@@ -7,7 +7,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// formations of a map combine. Two mods placing different enemies in the same formation
 /// conflict, and the report names the enemies each mod puts there.
 /// </summary>
-public sealed class EnemyPlacementMerger(GameNames names) : IFormatMerger
+internal sealed class EnemyPlacementMerger(GameNames names) : IFormatMerger
 {
     public string Method => "formation by formation";
 
@@ -47,7 +47,7 @@ public sealed class EnemyPlacementMerger(GameNames names) : IFormatMerger
     }
 
     /// <summary>
-    /// "zako 45 em045 Bloodsucker x2, boss 17 bs17 Sai", counting repeats of one enemy.
+    /// "zako 45 em045 &lt;name&gt; x2, boss 17 bs17 &lt;name&gt;", counting repeats of one enemy.
     /// </summary>
     private string Describe(Formation formation)
     {

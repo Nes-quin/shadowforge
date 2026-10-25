@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ShadowForge.Formats.GLTF;
 using ShadowForge.Formats.HDB;
 using ShadowForge.Formats.HDB.Import;
+using ShadowForge.Tests.GameData;
 
 namespace ShadowForge.Tests.HDB;
 
@@ -16,7 +17,7 @@ public sealed class ModelCookerTests
     {
         byte[] shipped = RetailData.Read(@"chara\ply\pc04\pc04_obj.hdb");
         var stock = ModelCooker.Bake(ModelReader.Read(shipped));
-        string dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "sf_reimport_" + Guid.NewGuid().ToString("N"))).FullName;
+        string dir = GameDataFixture.NewTempDir("sf_reimport_");
         string glb = Path.Combine(dir, "pc04.glb"), hdb = Path.Combine(dir, "pc04_obj.hdb");
 
         ModelExporter.Export(shipped, glb);

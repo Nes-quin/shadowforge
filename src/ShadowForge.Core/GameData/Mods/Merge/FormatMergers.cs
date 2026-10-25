@@ -5,7 +5,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// equal to stock change nothing, a single distinct change needs no merging, and only two or more
 /// different changes reach a format merger.
 /// </summary>
-public sealed class FormatMergers
+internal sealed class FormatMergers
 {
     private readonly TextMerger _text;
     private readonly SceneScriptMerger _sceneScript;

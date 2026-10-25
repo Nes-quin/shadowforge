@@ -4,7 +4,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// One run where two sequences differ: base items BaseStart..BaseEnd became other items
 /// OtherStart..OtherEnd. An empty base range is an insertion, an empty other range a deletion.
 /// </summary>
-public readonly record struct DiffHunk(int BaseStart, int BaseEnd, int OtherStart, int OtherEnd)
+internal readonly record struct DiffHunk(int BaseStart, int BaseEnd, int OtherStart, int OtherEnd)
 {
     public bool IsInsertion => BaseStart == BaseEnd;
 }
@@ -13,7 +13,7 @@ public readonly record struct DiffHunk(int BaseStart, int BaseEnd, int OtherStar
 /// The shortest edit script between two sequences, found with Myers' algorithm after the
 /// common head and tail are set aside.
 /// </summary>
-public static class SequenceDiff
+internal static class SequenceDiff
 {
     public static List<DiffHunk> Compute(IReadOnlyList<string> baseItems, IReadOnlyList<string> otherItems)
     {

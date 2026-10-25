@@ -16,7 +16,7 @@ public sealed record PatchedPackage(string Package, string ArchivePath, IReadOnl
 /// ships has no effect while the package is on. Enabled packages are listed in the profile's
 /// dlc_state.toml.
 /// </summary>
-public sealed class DlcPackages
+internal sealed class DlcPackages
 {
     public const string BackupSuffix = ".orig";
 

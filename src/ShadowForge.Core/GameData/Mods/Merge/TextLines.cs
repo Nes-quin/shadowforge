@@ -2,13 +2,13 @@ using System.Text;
 
 namespace ShadowForge.GameData.Mods.Merge;
 
-public enum TextEncodingKind { ShiftJIS, UTF16BigEndian, UTF16LittleEndian }
+internal enum TextEncodingKind { ShiftJIS, UTF16BigEndian, UTF16LittleEndian }
 
 /// <summary>
 /// What a text file carries besides its lines: a leading byte order mark, and whether the last
 /// line has no terminator.
 /// </summary>
-public readonly record struct TextLayout(bool ByteOrderMark, bool MissingFinalNewline)
+internal readonly record struct TextLayout(bool ByteOrderMark, bool MissingFinalNewline)
 {
     /// <summary>
     /// Stock's layout, with each flag taken from the mods where they change it.
@@ -25,7 +25,7 @@ public readonly record struct TextLayout(bool ByteOrderMark, bool MissingFinalNe
 /// inserting before the first row or appending after the last is seen as an insertion rather
 /// than an edit of that row.
 /// </summary>
-public sealed class TextLines
+internal sealed class TextLines
 {
     private const char ByteOrderMark = '﻿';
 

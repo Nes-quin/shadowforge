@@ -8,7 +8,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// archive still merges row by row and a motion pack merges clip by clip. The rebuilt archive is
 /// stored uncompressed, as the archive writer stores every archive.
 /// </summary>
-public sealed class ArchiveMerger(FormatMergers formats) : IFormatMerger
+internal sealed class ArchiveMerger(FormatMergers formats) : IFormatMerger
 {
     public string Method => "entry by entry";
 

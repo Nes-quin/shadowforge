@@ -1,6 +1,5 @@
 using System.CommandLine;
 using Microsoft.Extensions.Logging;
-using ShadowForge.GameData;
 using ShadowForge.GameData.Mods;
 using ShadowForge.GameData.Mods.Merge;
 
@@ -18,7 +17,7 @@ internal static class ModMergeCommands
     {
         var modsArg = ModsArgument();
         var rootOpt = new GameRootOption();
-        var profileOpt = ProfileOption();
+        var profileOpt = ModCommands.ProfileOption();
         var allOpt = AllConflictsOption();
         var jsonOpt = CliOutput.CreateJsonOption();
         var cmd = new Command("check",
@@ -53,11 +52,11 @@ internal static class ModMergeCommands
         var modsArg = ModsArgument();
         var nameOpt = new Option<string>("--name") { Description = "Name of the merged mod folder.", Required = true };
         var outOpt = new Option<string?>("--out") { Description = "Folder to create the merged mod in (default: the install's mods\\)." };
-        var forceOpt = new Option<bool>("--force") { Description = "Replace an existing folder of that name." };
+        var forceOpt = new Option<bool>("--force") { Description = "Replace an existing mod folder of that name." };
         var enableOpt = new Option<bool>("--enable")
             { Description = "Enable the merged mod and disable the mods it was made from in mod_order.txt." };
         var rootOpt = new GameRootOption();
-        var profileOpt = ProfileOption();
+        var profileOpt = ModCommands.ProfileOption();
         var allOpt = AllConflictsOption();
         var jsonOpt = CliOutput.CreateJsonOption();
         var cmd = new Command("merge",
@@ -89,6 +88,8 @@ internal static class ModMergeCommands
                 string modDir = Path.Combine(pr.GetValue(outOpt) ?? merger.ModsRoot, name);
                 if (Directory.Exists(modDir) && !pr.GetValue(forceOpt))
                     throw new InvalidOperationException($"{modDir} already exists. Pass --force to replace it.");
+                if (Directory.Exists(modDir) && !File.Exists(Path.Combine(modDir, "mod.toml")))
+                    throw new InvalidOperationException($"{modDir} is not a mod folder (no mod.toml), so it is not replaced.");
 
                 var plan = merger.Plan(mods);
                 if (!json)
@@ -102,7 +103,11 @@ internal static class ModMergeCommands
                 if (!json)
                     Console.WriteLine($"Wrote {written} file(s) to {modDir}");
                 if (pr.GetValue(enableOpt))
-                    SwapInMergedMod(install, name, mods, pr.GetValue(profileOpt), quiet: json);
+                {
+                    foreach (string source in mods)
+                        ModOrderEdit.Apply(install, source, enable: false, quiet: json, profile: pr.GetValue(profileOpt));
+                    ModOrderEdit.Apply(install, name, enable: true, quiet: json, profile: pr.GetValue(profileOpt));
+                }
                 return CliOutput.Success(json, "mod.merge", [modDir], Warnings(plan));
             }
             catch (Exception ex)
@@ -119,9 +124,6 @@ internal static class ModMergeCommands
         Description = "Mod folder names under mods\\, two or more.",
         Arity = ArgumentArity.OneOrMore,
     };
-
-    private static Option<string?> ProfileOption() =>
-        new("--profile") { Description = "Profile whose mod_order.txt and DLC state to use (default: 'default')." };
 
     private static Option<bool> AllConflictsOption() =>
         new("--all-conflicts") { Description = $"List every conflict in a file, not just the first {DefaultConflictsPerFile}." };
@@ -146,21 +148,5 @@ internal static class ModMergeCommands
         warnings.AddRange(plan.Shadowed.Select(f =>
             new CliWarning("shadowed", $"{f.VfsPath} is ignored while {string.Join(", ", f.Packages)} is enabled")));
         return warnings;
-    }
-
-    /// <summary>
-    /// Enables the merged mod and disables its sources, since enabling both means one copy of
-    /// each shared file is never read.
-    /// </summary>
-    private static void SwapInMergedMod(GameInstall install, string merged, IEnumerable<string> sources, string? profile, bool quiet)
-    {
-        var (path, _) = ModOrder.ResolveTarget(install, null, profile);
-        var order = ModOrder.Load(path);
-        foreach (string source in sources)
-            order.Disable(source);
-        order.Enable(merged);
-        order.Save();
-        if (!quiet)
-            Console.WriteLine($"Enabled '{merged}' and disabled {string.Join(", ", sources)} in {path}");
     }
 }

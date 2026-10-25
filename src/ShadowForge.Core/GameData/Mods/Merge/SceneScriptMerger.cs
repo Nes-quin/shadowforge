@@ -9,7 +9,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// in different places both keep their changes. Two mods changing the same statement conflict,
 /// and the report shows the statements with item names beside their item ids.
 /// </summary>
-public sealed class SceneScriptMerger(GameNames names) : IFormatMerger
+internal sealed class SceneScriptMerger(GameNames names) : IFormatMerger
 {
     public string Method => "decompiled to BDSL, merged line by line, recompiled";
 

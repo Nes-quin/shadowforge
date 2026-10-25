@@ -2,29 +2,13 @@ using ShadowForge.Formats.IPK;
 using ShadowForge.Formats.XACT;
 using ShadowForge.GameData.Mods.Merge;
 using ShadowForge.IO;
+using ShadowForge.Tests.Formats.XACT;
 
 namespace ShadowForge.Tests.GameData.Mods.Merge;
 
 public sealed class WaveBankMergerTests
 {
     private static readonly FormatMergers Formats = new(GameNames.Empty);
-
-    /// <summary>
-    /// A three-wave PCM bank laid out the way WaveBank.Write expects.
-    /// </summary>
-    private static byte[] StockBank()
-    {
-        var bank = new WaveBank
-        {
-            SegmentOffsets = [WaveBank.HeaderSize, WaveBank.HeaderSize + WaveBank.BankDataSize, 0, 0, 2048],
-        };
-        BigEndian.WriteUInt32(bank.BankData, WaveBank.BankEntryCountOffset, 3);
-        BigEndian.WriteUInt32(bank.BankData, WaveBank.BankEntryMetaDataElementSizeOffset, WaveBankEntry.RecordSize);
-        BigEndian.WriteUInt32(bank.BankData, WaveBank.BankAlignmentOffset, 2048);
-        for (int i = 0; i < 3; i++)
-            bank.Entries.Add(new WaveBankEntry { Format = WaveFormat.Pcm16(1, 48000), DurationSamples = 50, Data = new byte[100] });
-        return bank.Write();
-    }
 
     private static byte[] WithWave(byte[] stock, int index, byte fill)
     {
@@ -36,21 +20,21 @@ public sealed class WaveBankMergerTests
     [Fact]
     public void Merge_DifferentWavesReplaced_KeepsBoth()
     {
-        byte[] stock = StockBank();
+        byte[] stock = WaveBankTests.BuildBank();
 
         var result = Formats.Merge("BG_01.xwb", stock,
             [new ModVersion("A", WithWave(stock, 0, 0xAA)), new ModVersion("B", WithWave(stock, 2, 0xBB))]);
 
         var merged = WaveBank.Read(result.Data!, "merged");
         Assert.All(merged.Entries[0].Data, b => Assert.Equal(0xAA, b));
-        Assert.Equal(new byte[100], merged.Entries[1].Data);
+        Assert.Equal(WaveBank.Read(stock, "stock").Entries[1].Data, merged.Entries[1].Data);
         Assert.All(merged.Entries[2].Data, b => Assert.Equal(0xBB, b));
     }
 
     [Fact]
     public void Merge_OneWaveReplacedTwice_Conflict()
     {
-        byte[] stock = StockBank();
+        byte[] stock = WaveBankTests.BuildBank();
 
         var result = Formats.Merge("BG_01.xwb", stock,
             [new ModVersion("A", WithWave(stock, 1, 0xAA)), new ModVersion("B", WithWave(stock, 1, 0xBB))]);

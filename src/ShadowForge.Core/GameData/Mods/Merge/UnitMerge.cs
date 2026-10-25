@@ -3,32 +3,32 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// <summary>
 /// One mod's units: a whole version of a file, or that mod's replacement for a contested range.
 /// </summary>
-public sealed record ModUnits(string Mod, IReadOnlyList<string> Units);
+internal sealed record ModUnits(string Mod, IReadOnlyList<string> Units);
 
 /// <summary>
 /// Stock units StockStart..StockEnd that the listed mods replace with different units. An empty
 /// range is an insertion point both mods add to.
 /// </summary>
-public sealed record RangeConflict(int StockStart, int StockEnd, IReadOnlyList<ModUnits> Sides);
+internal sealed record RangeConflict(int StockStart, int StockEnd, IReadOnlyList<ModUnits> Sides);
 
-public sealed record SequenceMergeResult(IReadOnlyList<string> Units, IReadOnlyList<RangeConflict> Conflicts);
+internal sealed record SequenceMergeResult(IReadOnlyList<string> Units, IReadOnlyList<RangeConflict> Conflicts);
 
 /// <summary>
 /// One mod's units identified by key, in file order.
 /// </summary>
-public sealed record ModKeyedUnits(string Mod, IReadOnlyList<KeyValuePair<string, string>> Units);
+internal sealed record ModKeyedUnits(string Mod, IReadOnlyList<KeyValuePair<string, string>> Units);
 
 /// <summary>
 /// One mod's value for a key, null when the mod drops the unit.
 /// </summary>
-public sealed record ModValue(string Mod, string? Value);
+internal sealed record ModValue(string Mod, string? Value);
 
 /// <summary>
 /// A key the listed mods set to different values. Stock is null when the key is new.
 /// </summary>
-public sealed record KeyConflict(string Key, string? Stock, IReadOnlyList<ModValue> Sides);
+internal sealed record KeyConflict(string Key, string? Stock, IReadOnlyList<ModValue> Sides);
 
-public sealed record KeyedMergeResult(
+internal sealed record KeyedMergeResult(
     IReadOnlyList<KeyValuePair<string, string>> Units, IReadOnlyList<KeyConflict> Conflicts);
 
 /// <summary>
@@ -37,7 +37,7 @@ public sealed record KeyedMergeResult(
 /// by different mods are combined when they touch different units. When two mods change the
 /// same units, or insert at the same place, and the results differ, the units are a conflict.
 /// </summary>
-public static class UnitMerge
+internal static class UnitMerge
 {
     /// <summary>
     /// Merges lists whose units are identified by position, aligning each mod's list with the

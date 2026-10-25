@@ -7,7 +7,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// id N is row N - 1. Characters and enemies come from namelist_chr_us.u16, keyed by model id
 /// (em045, bs17, pc01). Enemy table row N is model emNNN in enemy_zako and bsNN in enemy_boss.
 /// </summary>
-public sealed partial class GameNames
+internal sealed partial class GameNames
 {
     public const string ItemNamesPath = @"database\ItWd_us.u16";
     public const string CharacterNamesPath = @"!necessity\bd_gamedat\namelist_chr_us.u16";
@@ -61,12 +61,12 @@ public sealed partial class GameNames
     public static string EnemyModelId(int table, int row) => table == 1 ? $"bs{row:00}" : $"em{row:000}";
 
     /// <summary>
-    /// "item 241 Elixir", or "item 241" when the name is unknown.
+    /// "item 241 &lt;name&gt;", or "item 241" when the name is unknown.
     /// </summary>
     public string ItemLabel(int id) => Item(id) is { } name ? $"item {id} {name}" : $"item {id}";
 
     /// <summary>
-    /// "em045 Bloodsucker", or the bare id when the name is unknown.
+    /// "em045 &lt;name&gt;", or the bare id when the name is unknown.
     /// </summary>
     public string ModelLabel(string modelId) => Model(modelId) is { } name ? $"{modelId} {name}" : modelId;
 

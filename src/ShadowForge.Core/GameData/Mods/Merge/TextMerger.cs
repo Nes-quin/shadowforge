@@ -8,7 +8,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// conflict like any other. Conflicting table rows are reported by what they are and by the
 /// columns each mod changes.
 /// </summary>
-public sealed class TextMerger(GameNames names) : IFormatMerger
+internal sealed class TextMerger(GameNames names) : IFormatMerger
 {
     private static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
     {

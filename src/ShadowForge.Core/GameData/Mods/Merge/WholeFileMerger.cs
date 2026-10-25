@@ -5,7 +5,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// effects and other binaries. Two mods shipping different copies are changing the same object,
 /// which is a conflict.
 /// </summary>
-public sealed class WholeFileMerger : IFormatMerger
+internal sealed class WholeFileMerger : IFormatMerger
 {
     public string Method => "whole file";
 

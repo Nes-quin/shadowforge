@@ -8,7 +8,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// layout, which a wave replacement does. The bank header, seek tables and entry names are
 /// units of their own.
 /// </summary>
-public sealed class WaveBankMerger : IFormatMerger
+internal sealed class WaveBankMerger : IFormatMerger
 {
     private const string BankHeader = "bank header";
     private const string SeekTables = "seek tables";

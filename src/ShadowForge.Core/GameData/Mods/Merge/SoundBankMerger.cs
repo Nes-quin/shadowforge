@@ -8,7 +8,7 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// a music randomizer does. A copy that changes anything in the bank besides those wave
 /// references cannot be merged this way.
 /// </summary>
-public sealed class SoundBankMerger : IFormatMerger
+internal sealed class SoundBankMerger : IFormatMerger
 {
     public string Method => "cue by cue";
 

@@ -3,31 +3,31 @@ namespace ShadowForge.GameData.Mods.Merge;
 /// <summary>
 /// Describes rows of a game table for conflict reports. A row is named by what it is where the
 /// table is known (an item, an enemy, a character model), and a change is listed as the columns
-/// it touches, by header name, as "HP 2250 -> 3000". Columns that hold item ids show the item.
+/// it touches, as "HP 2250 -> 3000". Columns that hold item ids show the item. The enemy stat
+/// tables (enemy_zako, enemy_boss) share one column layout, so their columns are named by
+/// position; any other table uses the header row the file itself carries.
 /// </summary>
-public sealed class TableRowDescriber
+internal sealed class TableRowDescriber
 {
-    /// <summary>
-    /// English names for the Japanese headers of the enemy stat tables.
-    /// </summary>
-    private static readonly Dictionary<string, string> EnglishHeaders = new()
+    private static readonly Dictionary<int, string> EnemyStatColumns = new()
     {
-        ["カテゴリNo."] = "Category", ["サイズ"] = "Size", ["グリッド"] = "Grid", ["名前"] = "Name",
-        ["種族"] = "Race", ["レベル"] = "Level", ["攻撃力"] = "Attack", ["魔法攻撃力"] = "Magic attack",
-        ["防御力"] = "Defense", ["魔法防御"] = "Magic defense", ["回避率"] = "Evasion",
-        ["回復量"] = "Recovery", ["命中率"] = "Accuracy", ["すばやさ"] = "Speed",
-        ["無属性耐性"] = "Neutral resist", ["火属性耐性"] = "Fire resist", ["水属性耐性"] = "Water resist",
-        ["風属性耐性"] = "Wind resist", ["土属性耐性"] = "Earth resist", ["聖属性耐性"] = "Light resist",
-        ["闇属性耐性"] = "Shadow resist", ["眠り耐性"] = "Sleep resist", ["ケロロン耐性"] = "Kelolon resist",
-        ["毒耐性"] = "Poison resist", ["しびれ耐性"] = "Paralysis resist", ["パニック耐性"] = "Panic resist",
-        ["石化耐性"] = "Petrify resist", ["気絶耐性"] = "Faint resist", ["死亡耐性"] = "Death resist",
-        ["スロウ耐性"] = "Slow resist", ["ストップ耐性"] = "Stop resist", ["MONEY"] = "Gold",
-        ["MEDAL"] = "Medals", ["アイテム1"] = "Drop item 1", ["アイテム2"] = "Drop item 2",
-        ["アイテム3"] = "Drop item 3", ["アイテム4"] = "Drop item 4", ["ドロップ率"] = "Drop rate",
-        ["移動タイプ"] = "Movement type",
+        [1] = "Category", [2] = "Size", [3] = "Grid", [4] = "Name", [5] = "Race", [6] = "Level",
+        [7] = "HP", [8] = "MP", [9] = "Attack", [10] = "Magic attack", [11] = "Defense",
+        [12] = "Magic defense", [13] = "Evasion", [14] = "Recovery", [15] = "Accuracy", [16] = "Speed",
+        [18] = "Neutral resist", [19] = "Fire resist", [20] = "Water resist", [21] = "Wind resist",
+        [22] = "Earth resist", [23] = "Light resist", [24] = "Shadow resist", [25] = "Sleep resist",
+        [26] = "Kelolon resist", [28] = "Poison resist", [29] = "Paralysis resist", [30] = "Panic resist",
+        [32] = "Petrify resist", [33] = "Faint resist", [34] = "Death resist", [43] = "Slow resist",
+        [44] = "Stop resist", [45] = "EXP", [46] = "SP", [47] = "Gold", [48] = "Medals",
+        [49] = "Drop item 1", [50] = "Drop rate 1", [51] = "Drop item 2", [52] = "Drop rate 2",
+        [53] = "Drop item 3", [54] = "Drop rate 3", [55] = "Drop item 4", [56] = "Drop rate 4",
+        [57] = "Movement type",
     };
 
+    private static readonly HashSet<int> EnemyDropItemColumns = [49, 51, 53, 55];
+
     private readonly RowIdentity _identity;
+    private readonly bool _enemyStats;
     private readonly GameNames _names;
     private readonly List<string> _headers;
     private readonly int _headerLines;
@@ -46,6 +46,7 @@ public sealed class TableRowDescriber
             _ when name.StartsWith("id_chr_model") || name.StartsWith("namelist_chr") => RowIdentity.ModelColumn,
             _ => RowIdentity.Position,
         };
+        _enemyStats = name.StartsWith("enemy_zako") || name.StartsWith("enemy_boss");
 
         bool hasHeader = _identity != RowIdentity.Item && LooksLikeHeader(stockLines);
         _headerLines = hasHeader ? 1 : 0;
@@ -59,8 +60,8 @@ public sealed class TableRowDescriber
         Path.GetExtension(fileName).ToLowerInvariant() is ".u16" or ".csv";
 
     /// <summary>
-    /// What the row at this 0-based line is: "item 241 Elixir", "enemy em045 Bloodsucker",
-    /// "model bs17 Sai", or "row 12 (pointID 3)" for a table this does not know.
+    /// What the row at this 0-based line is: "item 241 &lt;name&gt;", "enemy em045 &lt;name&gt;",
+    /// "model bs17 &lt;name&gt;", or "row 12 (pointID 3)" for a table this does not know.
     /// </summary>
     public string RowLabel(int lineIndex, string line)
     {
@@ -84,7 +85,7 @@ public sealed class TableRowDescriber
     }
 
     /// <summary>
-    /// The columns a mod's row changes: "HP 2250 -> 3000, Drop item 1 50 Medicine -> 241 Elixir".
+    /// The columns a mod's row changes: "HP 2250 -> 3000, Drop item 1 50 &lt;name&gt; -> 241 &lt;name&gt;".
     /// </summary>
     public string FieldChanges(string stockLine, string modLine)
     {
@@ -109,10 +110,10 @@ public sealed class TableRowDescriber
 
     private string ColumnName(int column)
     {
+        if (_enemyStats && EnemyStatColumns.TryGetValue(column, out string? stat)) return stat;
         if (column >= _headers.Count || _headers[column].Trim().Length == 0) return $"column {column}";
         string header = _headers[column].Trim();
-        string name = EnglishHeaders.GetValueOrDefault(header, header);
-        return _headers.Count(h => h.Trim() == header) > 1 ? $"{name} (column {column})" : name;
+        return _headers.Count(h => h.Trim() == header) > 1 ? $"{header} (column {column})" : header;
     }
 
     /// <summary>
@@ -122,8 +123,8 @@ public sealed class TableRowDescriber
     private string Value(int column, string value)
     {
         if (value.Length == 0) return "(blank)";
-        bool itemColumn = column < _headers.Count
-            && (_headers[column].Contains("アイテム") || _headers[column].Contains("item", StringComparison.OrdinalIgnoreCase));
+        bool itemColumn = (_enemyStats && EnemyDropItemColumns.Contains(column))
+            || (column < _headers.Count && _headers[column].Contains("item", StringComparison.OrdinalIgnoreCase));
         string? name = itemColumn && int.TryParse(value, out int id) ? _names.Item(id)
             : value.StartsWith("ITM", StringComparison.OrdinalIgnoreCase) && int.TryParse(value[3..], out int tagged) ? _names.Item(tagged)
             : _names.Model(value);
