@@ -6,6 +6,8 @@ using ShadowForge.Formats.HDB;
 using ShadowForge.Formats.HDB.Import;
 using ShadowForge.Formats.HMB;
 using ShadowForge.GameData;
+using ShadowForge.GameData.Entities;
+using SharpGLTF.Schema2;
 
 namespace ShadowForge.CLI.Commands;
 
@@ -162,7 +164,7 @@ public static class HDBCommands
         var formatOpt = new Option<string?>("--format")
             { Description = "DDS format override such as DXT1 or DXT5 (default: chosen by alpha presence)." };
         var rigOpt = new Option<string?>("--rig")
-            { Description = "Rig HDB path or entity id whose bone frames and extra euler are kept, so its cutscene and face motions still fit (default: none)." };
+            { Description = "Rig HDB path or entity id whose bone frames and extra euler are kept, so its cutscene and face motions still fit (default: the shipped rig whose bone names are the glTF's joint names)." };
         var rootOpt = new GameRootOption();
         var cmd = new Command("import", "Import GLTF to HDB and DDS.");
         cmd.Arguments.Add(fileArg);
@@ -180,12 +182,9 @@ public static class HDBCommands
             {
                 GraphicFormat? formatOverride = string.IsNullOrEmpty(formatName) ? null : GraphicFormatParser.Parse(formatName);
                 string output = OutputPath.ForFile(pr.GetValue(outputOpt), file.FullName, ".hdb");
-                IReadOnlyList<Bone>? rigBones = null;
-                if (!string.IsNullOrWhiteSpace(rigArg))
-                {
-                    using var rigInput = EntityArg.File(pr.GetValue(rootOpt), rigArg, FileRole.Skeleton, withSiblings: false);
-                    rigBones = ModelCooker.Bake(ModelReader.Read(rigInput.Path)).Bones;
-                }
+                var rigBones = string.IsNullOrWhiteSpace(rigArg)
+                    ? FindShippedRig(pr.GetValue(rootOpt), file.FullName, log)
+                    : ReadRig(pr.GetValue(rootOpt), rigArg);
                 ModelImporter.Import(file.FullName, output, log, formatOverride, rigBones);
                 return 0;
             }
@@ -196,6 +195,51 @@ public static class HDBCommands
             }
         });
         return cmd;
+    }
+
+    private const string NoRigConsequence =
+        "Bones keep the glTF's frames, so the game's own motions for the original model "
+        + "(cutscene, face and head-turn) will not fit it. Pass --rig <entity id or .hdb>.";
+
+    private static IReadOnlyList<Bone> ReadRig(string? gameRoot, string rigArg)
+    {
+        using var rigInput = EntityArg.File(gameRoot, rigArg, FileRole.Skeleton, withSiblings: false);
+        return ModelCooker.Bake(ModelReader.Read(rigInput.Path)).Bones;
+    }
+
+    /// <summary>
+    /// The bones of the one shipped skeleton whose bone names are the glTF's joint names.
+    /// Null for a model without joints, and null with a warning when no game install is found
+    /// or when no skeleton, or more than one, matches.
+    /// </summary>
+    private static IReadOnlyList<Bone>? FindShippedRig(string? gameRoot, string gltfPath, ILogger log)
+    {
+        var jointNames = GLTFSceneReader.JointNames(ModelRoot.Load(gltfPath));
+        if (jointNames.Count == 0) return null;
+
+        GameInstall install;
+        try
+        {
+            install = GameInstall.Locate(gameRoot);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            log.LogWarning("No --rig given and no game install found to look one up. {Consequence}", NoRigConsequence);
+            return null;
+        }
+
+        var matches = new RigFinder(install).Find(jointNames);
+        if (matches.Count == 1)
+        {
+            log.LogInformation("Using the shipped rig {Path}, whose bone names match the glTF joints.", matches[0].VfsPath);
+            return matches[0].Bones;
+        }
+        if (matches.Count == 0)
+            log.LogWarning("No shipped rig has exactly these bone names. {Consequence}", NoRigConsequence);
+        else
+            log.LogWarning("Several shipped rigs have these bone names: {Paths}. {Consequence}",
+                string.Join(", ", matches.Select(m => m.VfsPath)), NoRigConsequence);
+        return null;
     }
 
     private static Command BuildInspectCommand(Func<ParseResult, ILoggerFactory> getFactory)
