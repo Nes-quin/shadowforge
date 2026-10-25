@@ -14,11 +14,12 @@ namespace ShadowForge.Formats.HMB.Import;
 public static class MotionImporter
 {
     /// <summary>
-    /// Reads the clips in <paramref name="glbPath"/>, checks them against the HDB skeleton and
-    /// undoes each bone's extra euler orientation. Every clip is built, read back and compared
-    /// before it is packed. With a template, entries with a matching name are replaced, the
-    /// rest kept verbatim, unmatched clips appended, and the template's alignment wins over
-    /// <paramref name="alignment"/>. Without one, the archive holds only the imported clips.
+    /// Reads the clips in <paramref name="glbPath"/>, checks them against the HDB skeleton, moves
+    /// them onto its bone frames and undoes each bone's extra euler orientation. Every clip is
+    /// built, read back and compared before it is packed. With a template, entries with a
+    /// matching name are replaced, the rest kept verbatim, unmatched clips appended, and the
+    /// template's alignment wins over <paramref name="alignment"/>. Without one, the archive
+    /// holds only the imported clips.
     /// </summary>
     public static MotionImportResult Import(
         string glbPath, byte[] hdbBytes, Stream? templateMPK = null, uint alignment = 0x80)
@@ -43,7 +44,7 @@ public static class MotionImporter
 
         warnings.AddRange(GLTFAnimationReader.CrossCheckSkeleton(model.Bones.Select(b => b.Name), gltf));
 
-        var clips = GLTFAnimationReader.Read(gltf, out var readWarnings, BoneOrients(model));
+        var clips = GLTFAnimationReader.Read(gltf, out var readWarnings, BoneOrients(model), model.Bones);
         warnings.AddRange(readWarnings);
 
         RequireKnownBones(clips, model);

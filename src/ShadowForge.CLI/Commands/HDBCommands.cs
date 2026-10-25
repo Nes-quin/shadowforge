@@ -161,20 +161,32 @@ public static class HDBCommands
         var outputOpt = new Option<FileInfo?>("-o") { Description = "Output .hdb file (default: <input>.hdb beside the input)." };
         var formatOpt = new Option<string?>("--format")
             { Description = "DDS format override such as DXT1 or DXT5 (default: chosen by alpha presence)." };
+        var rigOpt = new Option<string?>("--rig")
+            { Description = "Rig HDB path or entity id whose bone frames and extra euler are kept, so its cutscene and face motions still fit (default: none)." };
+        var rootOpt = new GameRootOption();
         var cmd = new Command("import", "Import GLTF to HDB and DDS.");
         cmd.Arguments.Add(fileArg);
         cmd.Options.Add(outputOpt);
         cmd.Options.Add(formatOpt);
+        cmd.Options.Add(rigOpt);
+        cmd.Options.Add(rootOpt);
         cmd.SetAction(pr =>
         {
             var log = getFactory(pr).CreateLogger("hdb.import");
             var file = pr.GetValue(fileArg)!;
             string? formatName = pr.GetValue(formatOpt);
+            string? rigArg = pr.GetValue(rigOpt);
             try
             {
                 GraphicFormat? formatOverride = string.IsNullOrEmpty(formatName) ? null : GraphicFormatParser.Parse(formatName);
                 string output = OutputPath.ForFile(pr.GetValue(outputOpt), file.FullName, ".hdb");
-                ModelImporter.Import(file.FullName, output, log, formatOverride);
+                IReadOnlyList<Bone>? rigBones = null;
+                if (!string.IsNullOrWhiteSpace(rigArg))
+                {
+                    using var rigInput = EntityArg.File(pr.GetValue(rootOpt), rigArg, FileRole.Skeleton, withSiblings: false);
+                    rigBones = ModelCooker.Bake(ModelReader.Read(rigInput.Path)).Bones;
+                }
+                ModelImporter.Import(file.FullName, output, log, formatOverride, rigBones);
                 return 0;
             }
             catch (Exception ex)

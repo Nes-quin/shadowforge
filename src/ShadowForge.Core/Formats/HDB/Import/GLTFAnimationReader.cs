@@ -18,10 +18,13 @@ public static class GLTFAnimationReader
     /// with an entry, the sampled rotation is divided by pre and post before euler
     /// decomposition, so the HMB track carries only the animated factor that
     /// AnimationExporter multiplied in. Joints without an entry are read as sampled.
+    /// With <paramref name="frameBones"/>, the bones the model was imported with, every key
+    /// is first moved onto those bones' frames (see <see cref="JointFrames"/>).
     /// </summary>
     public static List<MotionClip> Read(
         ModelRoot gltf, out List<string> warnings,
-        IReadOnlyDictionary<string, (Quaternion Pre, Quaternion Post)>? boneOrients = null)
+        IReadOnlyDictionary<string, (Quaternion Pre, Quaternion Post)>? boneOrients = null,
+        IReadOnlyList<Bone>? frameBones = null)
     {
         warnings = [];
         var clips = new List<MotionClip>();
@@ -40,6 +43,14 @@ public static class GLTFAnimationReader
             jointNames[i] = name;
         }
         CheckCrcCollisions(jointNames);
+        var parents = JointParents(joints);
+        var frames = frameBones is null
+            ? Enumerable.Repeat(Quaternion.Identity, jointCount).ToArray()
+            : JointFrames.Compute(
+                Enumerable.Range(0, jointCount)
+                    .Select(i => new JointFrames.Joint(jointNames[i], parents[i], joints[i].LocalTransform.Rotation))
+                    .ToList(),
+                frameBones);
 
         foreach (var anim in gltf.LogicalAnimations)
         {
@@ -73,13 +84,19 @@ public static class GLTFAnimationReader
                 bool hasOrient = boneOrients != null
                     && boneOrients.TryGetValue(jointNames[i], out orient)
                     && (orient.Pre != default || orient.Post != default);
+                var frame = frames[i];
+                var parentFrame = parents[i] >= 0 ? frames[parents[i]] : Quaternion.Identity;
+                bool moved = frame != Quaternion.Identity || parentFrame != Quaternion.Identity;
 
                 if (tChan != null)
                 {
                     var sampler = tChan.GetTranslationSampler().CreateCurveSampler();
                     var values = new Vector3[frameCount];
                     for (int f = 0; f < frameCount; f++)
-                        values[f] = sampler.GetPoint(f / MotionClip.DefaultFrameRate);
+                    {
+                        var t = sampler.GetPoint(f / MotionClip.DefaultFrameRate);
+                        values[f] = moved ? JointFrames.MoveTranslation(t, parentFrame) : t;
+                    }
                     track.Translation = new Vec3Channel { Linear = HMBQuantize.ReduceVec3(values) };
                 }
 
@@ -88,7 +105,7 @@ public static class GLTFAnimationReader
                     var sampler = sChan.GetScaleSampler().CreateCurveSampler();
                     var values = new Vector3[frameCount];
                     for (int f = 0; f < frameCount; f++)
-                        values[f] = sampler.GetPoint(f / MotionClip.DefaultFrameRate);
+                        values[f] = JointFrames.MoveScale(sampler.GetPoint(f / MotionClip.DefaultFrameRate), frame);
                     track.Scale = new Vec3Channel { Linear = HMBQuantize.ReduceVec3(values) };
                 }
 
@@ -101,6 +118,7 @@ public static class GLTFAnimationReader
                     for (int f = 0; f < frameCount; f++)
                     {
                         var qLocal = sampler.GetPoint(f / MotionClip.DefaultFrameRate);
+                        if (moved) qLocal = JointFrames.MoveRotation(qLocal, frame, parentFrame);
                         var qAnim = hasOrient ? UnsandwichRotation(qLocal, orient.Pre, orient.Post) : qLocal;
                         var (ex, ey, ez) = QuaternionToEulerZyx(qAnim);
                         anglesX[f] = ex;
@@ -180,6 +198,19 @@ public static class GLTFAnimationReader
                 + "field holds at most 16 ASCII characters, no NUL terminator).");
 
         return warnings;
+    }
+
+    /// <summary>
+    /// Each joint's parent joint index, or -1 when its parent node is not a joint.
+    /// </summary>
+    private static int[] JointParents(Node[] joints)
+    {
+        var index = new Dictionary<Node, int>();
+        for (int i = 0; i < joints.Length; i++)
+            index[joints[i]] = i;
+        return joints
+            .Select(j => j.VisualParent is { } p && index.TryGetValue(p, out int pi) ? pi : -1)
+            .ToArray();
     }
 
     private static void CheckCrcCollisions(string[] jointNames)
