@@ -9,13 +9,15 @@ public static class ModCommands
 {
     public static Command Create(Func<ParseResult, ILoggerFactory> getFactory)
     {
-        var cmd = new Command("mod", "Deploy, build, list, enable, and disable mods.");
+        var cmd = new Command("mod", "Deploy, build, list, enable, disable, check, and merge mods.");
         cmd.Subcommands.Add(BuildDeploy(getFactory));
         cmd.Subcommands.Add(BuildBuild(getFactory));
         cmd.Subcommands.Add(BuildTrace(getFactory));
         cmd.Subcommands.Add(BuildList(getFactory));
         cmd.Subcommands.Add(BuildEnable(getFactory, enable: true));
         cmd.Subcommands.Add(BuildEnable(getFactory, enable: false));
+        cmd.Subcommands.Add(ModMergeCommands.BuildCheck(getFactory));
+        cmd.Subcommands.Add(ModMergeCommands.BuildMerge(getFactory));
         return cmd;
     }
 
