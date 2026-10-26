@@ -267,7 +267,25 @@ def test_layer_builds_stage0_under_iris(materials_module, mock_bpy):
     assert face.from_node is tex0
     assert iris.from_node.image.name == mat.name
     assert factor.from_socket.name == "Alpha"
-    assert factor.from_node is iris.from_node
+    assert factor.from_node is nt.nodes.get(materials_module.IRIS_MASK_NODE)
+
+
+def test_layer_samples_iris_alpha_with_clip(materials_module, mock_bpy):
+    mat, obj = eye_object(mock_bpy)
+    nt = mat.node_tree
+    iris = base_color_source(mat)
+    iris.extension = 'MIRROR'
+
+    materials_module.layer_staged_materials([obj])
+
+    mix = nt.nodes.get(materials_module.MIX_NODE)
+    factor = link_into(nt, materials_module._socket(mix.inputs, "Factor_Float"))
+    mask = factor.from_node
+    assert mask is not iris
+    assert mask.image is iris.image
+    assert mask.extension == 'CLIP'
+    assert link_into(nt, mask.inputs["Vector"]).from_node is nt.nodes.get("UV Map")
+    assert iris.extension == 'MIRROR'
 
 
 def test_layer_twice_adds_one_mix(materials_module, mock_bpy):

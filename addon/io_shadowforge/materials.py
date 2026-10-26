@@ -9,8 +9,10 @@ layer_staged_materials() stacks the layers the way the game draws them: the
 stage-0 face (TEXCOORD_0), the iris over it by iris alpha, then the stage-2
 eyelid (TEXCOORD_2) over both by eyelid alpha. The eyelid is the bound blink
 frame, and on some characters (Marumaro) it is the layer that draws the eyes.
-It samples with CLIP addressing, because a UV of -32 marks vertices the eyelid
-does not cover. contract_layout_for_export() rewires back to contract layout
+A UV of -32 marks vertices a layer does not cover, such as Marumaro's nose and
+ear in his eyelid meshes, so the iris and eyelid alphas are sampled with CLIP
+addressing. The iris alpha comes from a second image node, so the iris node
+keeps the wrap mode it exports with. contract_layout_for_export() rewires back to contract layout
 around a scene export, because the GLTF exporter cannot trace baseColorTexture
 through a Mix node.
 """
@@ -24,6 +26,7 @@ from contextlib import contextmanager
 MIX_NODE = "SF Stage Mix"
 STAGE0_TEX_NODE = "SF Stage0 Texture"
 STAGE0_UV_NODE = "SF Stage0 UV"
+IRIS_MASK_NODE = "SF Stage1 Mask"
 STAGE2_MIX_NODE = "SF Stage2 Mix"
 STAGE2_TEX_NODE = "SF Stage2 Texture"
 STAGE2_UV_NODE = "SF Stage2 UV"
@@ -101,7 +104,8 @@ def layer_staged_materials(objs):
 
 
 def _layer_face_under_iris(mat, mesh, nt, bsdf):
-    """Puts the stage-0 face under the iris, mixed by iris alpha. Returns a
+    """Puts the stage-0 face under the iris, mixed by iris alpha sampled with
+    CLIP addressing. Returns a
     warning when the material cannot be layered, else None."""
     base_in = bsdf.inputs["Base Color"]
     iris_link = _link_into(nt, base_in)
@@ -129,6 +133,13 @@ def _layer_face_under_iris(mat, mesh, nt, bsdf):
     tex0.image = stage0_img
     tex0.location = (iris.location[0], iris.location[1] + 300)
 
+    mask = nt.nodes.new('ShaderNodeTexImage')
+    mask.name = IRIS_MASK_NODE
+    mask.label = "stage 1 (iris) coverage"
+    mask.image = iris.image
+    mask.extension = 'CLIP'
+    mask.location = (iris.location[0], iris.location[1] - 450)
+
     mix = nt.nodes.new('ShaderNodeMix')
     mix.data_type = 'RGBA'
     mix.name = MIX_NODE
@@ -138,7 +149,10 @@ def _layer_face_under_iris(mat, mesh, nt, bsdf):
     nt.links.new(_socket(uv0.outputs, "UV"), tex0.inputs["Vector"])
     nt.links.new(_socket(tex0.outputs, "Color"), _socket(mix.inputs, "A_Color"))
     nt.links.new(_socket(iris.outputs, "Color"), _socket(mix.inputs, "B_Color"))
-    nt.links.new(_socket(iris.outputs, "Alpha"), _socket(mix.inputs, "Factor_Float"))
+    iris_uv = _link_into(nt, iris.inputs["Vector"])
+    if iris_uv is not None:
+        nt.links.new(iris_uv.from_socket, mask.inputs["Vector"])
+    nt.links.new(_socket(mask.outputs, "Alpha"), _socket(mix.inputs, "Factor_Float"))
     nt.links.new(_socket(mix.outputs, "Result_Color"), base_in)
     return None
 
