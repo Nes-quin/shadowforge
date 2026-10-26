@@ -96,8 +96,8 @@ def plan_folds(bones):
     return deltas, warnings
 
 
-def _rest_matrices(arm_obj):
-    return {b.name: b.matrix_local.copy() for b in arm_obj.data.bones}
+def _rest_matrices(arm_obj, names):
+    return {n: arm_obj.data.bones[n].matrix_local.copy() for n in names}
 
 
 def _edit_rolls(arm_obj, updates):
@@ -123,7 +123,7 @@ def _edit_rolls(arm_obj, updates):
 
 def _corrections(rest_before, rest_after):
     """Per-bone roll rotation R = rest^-1 @ rest' (bone-local, about the bone
-    axis) for every bone whose own rest changed."""
+    axis) for every given bone whose rest changed."""
     corrections = {}
     for name, before in rest_before.items():
         r = before.inverted() @ rest_after[name]
@@ -255,10 +255,12 @@ def _correct_current_pose(arm_obj, corrections):
 
 def _reroll(arm_obj, updates, actions):
     """Applies roll updates, then retargets actions and the live pose so the
-    skin does not move. Returns {bone: (roll_before, roll_after)}."""
-    rest_before = _rest_matrices(arm_obj)
+    skin does not move. Only the rolled bones are retargeted: the edit-mode
+    round trip also recomputes every other rest matrix, and that float noise
+    is not a rest change. Returns {bone: (roll_before, roll_after)}."""
+    rest_before = _rest_matrices(arm_obj, updates)
     applied = _edit_rolls(arm_obj, updates)
-    corrections = _corrections(rest_before, _rest_matrices(arm_obj))
+    corrections = _corrections(rest_before, _rest_matrices(arm_obj, updates))
     for action in actions:
         _transform_action(action, corrections)
     _correct_current_pose(arm_obj, corrections)
@@ -319,25 +321,84 @@ def _actions_for(arm_obj, folded):
     return out
 
 
+def _save_keys(actions, bones):
+    """Keyframes of every curve on the given bones, as
+    [(bag, {(bone, prop): [[(co, interpolation), ...] per curve]})]."""
+    saved = []
+    for action in actions:
+        for bag in _channelbags(action):
+            keys = {}
+            for bone, channels in _action_bone_curves(bag).items():
+                if bone not in bones:
+                    continue
+                for prop, fcs in channels.items():
+                    keys[(bone, prop)] = [[(tuple(kp.co), kp.interpolation)
+                                           for kp in fc.keyframe_points] for fc in fcs]
+            saved.append((bag, keys))
+    return saved
+
+
+def _restore_keys(saved, bones):
+    """Writes saved keyframes back and removes bone curves added since."""
+    for bag, keys in saved:
+        for bone, channels in _action_bone_curves(bag).items():
+            if bone not in bones:
+                continue
+            for prop, fcs in channels.items():
+                old = keys.get((bone, prop))
+                if old is None:
+                    for fc in fcs:
+                        bag.fcurves.remove(fc)
+                    continue
+                for fc, points in zip(fcs, old):
+                    kps = fc.keyframe_points
+                    if len(kps) != len(points):
+                        while len(kps) > 0:
+                            kps.remove(kps[0], fast=True)
+                        kps.add(len(points))
+                    for kp, (co, interpolation) in zip(kps, points):
+                        kp.co = co
+                        kp.interpolation = interpolation
+                    fc.update()
+
+
+def _save_pose(arm_obj, bones):
+    return {pb.name: (tuple(pb.location), tuple(pb.rotation_quaternion),
+                      tuple(pb.rotation_euler), tuple(pb.scale))
+            for pb in arm_obj.pose.bones if pb.name in bones}
+
+
+def _restore_pose(arm_obj, saved):
+    for name, (loc, quat, euler, scale) in saved.items():
+        pb = arm_obj.pose.bones[name]
+        pb.location, pb.rotation_quaternion, pb.rotation_euler, pb.scale = loc, quat, euler, scale
+
+
 @contextmanager
 def unfolded_for_export():
     """Restores game-convention rolls and action curves around an export,
     then refolds. Each roll returns to its recorded original value plus any
     user edit made since folding, so an unedited bone's bind is restored bit
-    for bit and the cooked HDB matches an export that never folded."""
+    for bit and the cooked HDB matches an export that never folded. The
+    refold writes back the folded keys and pose saved before unfolding, so
+    every export starts from the same scene."""
     folded_armatures = [o for o in bpy.data.objects
                         if o.type == 'ARMATURE' and _fold_state(o)]
     restore = []
     for arm_obj in folded_armatures:
         state = {n: rolls for n, rolls in _fold_state(arm_obj).items()
                  if n in arm_obj.data.bones}
-        actions = _actions_for(arm_obj, set(state))
+        bones = set(state)
+        actions = _actions_for(arm_obj, bones)
+        saved = (_save_keys(actions, bones), _save_pose(arm_obj, bones))
         _reroll(arm_obj, {n: (lambda roll, o=orig, f=folded: o + (roll - f))
                           for n, (orig, folded) in state.items()}, actions)
-        restore.append((arm_obj, state, actions))
+        restore.append((arm_obj, state, bones, saved))
     try:
         yield
     finally:
-        for arm_obj, state, actions in restore:
-            _reroll(arm_obj, {n: (lambda roll, o=orig, f=folded: f + (roll - o))
-                              for n, (orig, folded) in state.items()}, actions)
+        for arm_obj, state, bones, (keys, pose) in restore:
+            _edit_rolls(arm_obj, {n: (lambda roll, o=orig, f=folded: f + (roll - o))
+                                  for n, (orig, folded) in state.items()})
+            _restore_keys(keys, bones)
+            _restore_pose(arm_obj, pose)
