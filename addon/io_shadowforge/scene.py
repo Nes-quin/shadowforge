@@ -91,6 +91,7 @@ def import_entity(workdir, entity_id, result):
         if obj.type == 'ARMATURE':
             _, fold_warnings = rigfold.fold_armature(obj, new_actions)
             warnings.extend(fold_warnings)
+            tailtrim.move_pivots(obj, size)
             tailtrim.trim_tails(obj, size)
     return man, warnings
 
