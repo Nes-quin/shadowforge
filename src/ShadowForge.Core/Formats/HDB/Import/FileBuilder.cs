@@ -3,6 +3,7 @@ using System.Text;
 using ShadowForge.IO;
 using ShadowForge.Formats.HDB.Raw;
 using ShadowForge.Formats.HDB.Wire;
+using ShadowForge.Formats.HMB;
 
 namespace ShadowForge.Formats.HDB.Import;
 
@@ -55,7 +56,7 @@ public static class FileBuilder
             entrySizes.Add((FirstTableEntryType.TextureTable, scene.Textures.Count * TextureData.Size));
             entrySizes.Add((FirstTableEntryType.TextureCount, 8));
         }
-        foreach (var _ in bones) entrySizes.Add((FirstTableEntryType.Bone, BoneData.ShortRecordSize));
+        foreach (var bone in bones) entrySizes.Add((FirstTableEntryType.Bone, BoneRecordSize(bone)));
         entrySizes.Add((FirstTableEntryType.RenderCommands, rcStream.Length));
         entrySizes.Add((FirstTableEntryType.IndexTable, 8));
         entrySizes.Add((FirstTableEntryType.VASetup, 4 + VASetupRecord.Size * batches.Count));
@@ -315,12 +316,16 @@ public static class FileBuilder
         {
             var b = bones[i];
             int o = boneOffsets[i];
-            var euler = RuntimeMath.QuaternionToEulerZyx(b.Rotation);
+            var euler = RecordEuler(b);
+            var extraA = new Vector3(b.ExtraEuler[0], b.ExtraEuler[1], b.ExtraEuler[2]);
+            var extraB = new Vector3(b.ExtraEuler[3], b.ExtraEuler[4], b.ExtraEuler[5]);
 
             var flags = BoneFlags.None;
             if (b.Translation.LengthSquared() > 1e-12f) flags |= BoneFlags.Position;
             if (euler.LengthSquared() > 1e-12f) flags |= BoneFlags.Euler;
             if ((b.Scale - Vector3.One).LengthSquared() > 1e-12f) flags |= BoneFlags.Scale;
+            if (extraA != Vector3.Zero) flags |= BoneFlags.ExtraEulerA;
+            if (extraB != Vector3.Zero) flags |= BoneFlags.ExtraEulerB;
 
             flags |= b.ParentIndex >= 0 ? BoneFlags.Parented : BoneFlags.Anchor;
             if (i == geometryBone) flags |= BoneFlags.Model;
@@ -344,7 +349,33 @@ public static class FileBuilder
             layout.SlotCells.Add(o + BoneData.SiblingPtrOffset);
 
             WriteName(d, o + BoneData.NameOffset, b.Name, BoneData.NameWidth);
+
+            if (HasExtraEuler(b))
+            {
+                WriteVector3(d, o + BoneData.ExtraEulerAOffset, extraA);
+                WriteVector3(d, o + BoneData.ExtraEulerBOffset, extraB);
+            }
         }
+    }
+
+    private static bool HasExtraEuler(ImportBone bone) => bone.ExtraEuler.Any(v => v != 0f);
+
+    private static int BoneRecordSize(ImportBone bone)
+        => HasExtraEuler(bone) ? BoneData.LongRecordSize : BoneData.ShortRecordSize;
+
+    /// <summary>
+    /// The euler a bone record stores: the bone's rotation with its extra euler factors
+    /// divided out, since the runtime composes A * Euler * B.
+    /// </summary>
+    private static Vector3 RecordEuler(ImportBone bone)
+    {
+        if (!HasExtraEuler(bone)) return RuntimeMath.QuaternionToEulerZyx(bone.Rotation);
+        var e = bone.ExtraEuler;
+        var inner = GLTFAnimationReader.UnsandwichRotation(
+            bone.Rotation,
+            Sampler.EulerToQuaternion(e[0], e[1], e[2]),
+            Sampler.EulerToQuaternion(e[3], e[4], e[5]));
+        return RuntimeMath.QuaternionToEulerZyx(inner);
     }
 
     /// <summary>

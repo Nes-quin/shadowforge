@@ -85,7 +85,7 @@ public static class MOTCommands
         var outputOpt = new Option<FileInfo?>("-o")
             { Description = "Output .mpk path (default: <template>.new.mpk beside the template, or <glb>_mot.mpk beside the glb)." };
         var hdbOpt = new Option<string?>("--hdb")
-            { Description = "Model HDB path or entity id, required for bone names and orient factors." };
+            { Description = "Model HDB path or entity id, required for bone names, frames and orient factors." };
         var rootOpt = new GameRootOption();
         var cmd = new Command("import", "Import GLTF animations into a repacked mot.mpk.");
         cmd.Arguments.Add(glbArg);

@@ -36,6 +36,18 @@ public static class GLTFSceneReader
     /// </summary>
     private readonly record struct StagedBinding(int Stage0, int Stage1, int Stage2);
 
+    /// <summary>
+    /// The first skin's joint names in joint order, named as the imported bones are.
+    /// </summary>
+    public static List<string> JointNames(ModelRoot gltf)
+    {
+        var skin = gltf.LogicalSkins.FirstOrDefault();
+        var names = new List<string>();
+        for (int i = 0; i < (skin?.JointsCount ?? 0); i++)
+            names.Add(skin!.GetJoint(i).Joint.Name ?? $"joint{i}");
+        return names;
+    }
+
     private static void ReadSkeleton(ModelRoot gltf, ImportScene scene, ILogger log)
     {
         var skin = gltf.LogicalSkins.FirstOrDefault();
