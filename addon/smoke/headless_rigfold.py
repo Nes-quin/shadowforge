@@ -89,6 +89,15 @@ def _cases(actions, per_clip=4, clips=3):
     return out
 
 
+def _scene_state(arm, actions):
+    """Every keyframe and pose channel, for bit-exact comparison."""
+    keys = [(fc.data_path, fc.array_index, [tuple(kp.co) for kp in fc.keyframe_points])
+            for a in actions for bag in rigfold._channelbags(a) for fc in bag.fcurves]
+    pose = [(pb.name, tuple(pb.location), tuple(pb.rotation_quaternion), tuple(pb.scale))
+            for pb in arm.pose.bones]
+    return keys, pose
+
+
 def _check(label, cases, before, after, tol):
     worst = 0.0
     for (action, frame), b, a in zip(cases, before, after):
@@ -144,6 +153,17 @@ def main():
                   "(%.4f %.4f %.4f %.4f)" % (pb.name, q.w, q.x, q.y, q.z))
 
     _check("after fold", cases, before, [_snapshot(arm, a, f) for a, f in cases], args.tol)
+
+    # Each export unfolds and refolds, so the refold must return the scene
+    # bit for bit or consecutive exports differ.
+    keys, pose = _scene_state(arm, actions)
+    with rigfold.unfolded_for_export():
+        pass
+    keys_after, pose_after = _scene_state(arm, actions)
+    if keys_after != keys:
+        _fail("the export unfold/refold round trip changed the folded keys")
+    if pose_after != pose:
+        _fail("the export unfold/refold round trip changed the pose")
 
     with rigfold.unfolded_for_export():
         _check("inside export unfold", cases, before,

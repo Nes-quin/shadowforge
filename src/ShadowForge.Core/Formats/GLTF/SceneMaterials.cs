@@ -10,8 +10,11 @@ namespace ShadowForge.Formats.GLTF;
 
 /// <summary>
 /// glTF materials for a model's texture slots. A slot whose texture is not found gets a
-/// flat color from a fixed palette. Textures sample with MIRRORED_REPEAT, because Blue
-/// Dragon UVs span [-1, +1] on mirror-symmetric parts.
+/// flat color from a fixed palette. A texture that any draw of the slot takes below 0 samples
+/// with MIRRORED_REPEAT, because Blue Dragon UVs span [-1, +1] on mirror-symmetric parts.
+/// Every other texture samples with REPEAT, because some parts (np108's face, sw02's head)
+/// sit a whole tile past 1 and show the texture unflipped. Both axes share one mode, since
+/// Blender's importer rebuilds a mixed pair from math nodes that sample differently.
 /// </summary>
 internal static class SceneMaterials
 {
@@ -36,6 +39,7 @@ internal static class SceneMaterials
     {
         int count = Math.Max(model.TextureCount, 1);
         var materials = new MaterialBuilder[count];
+        var wraps = WrapModes(model, count);
         string NameFor(int i) =>
             textureNames is not null && i < textureNames.Count ? textureNames[i]
             : i < model.Textures.Count ? model.Textures[i].Name : $"material_{i}";
@@ -50,18 +54,18 @@ internal static class SceneMaterials
                 if (TextureResolver.FindDDS(name, textureDir) is { } diffusePath)
                 {
                     mat.WithBaseColor(LoadDDS(diffusePath, name), null);
-                    ApplyMirroredRepeat(mat, KnownChannel.BaseColor);
+                    ApplyWrap(mat, KnownChannel.BaseColor, wraps[i]);
                     hasTexture = true;
                 }
                 else if (TextureResolver.FindVolume(name, textureDir) is { } volumePath)
                 {
-                    hasTexture = BindVolumeTexture(mat, name, volumePath);
+                    hasTexture = BindVolumeTexture(mat, name, volumePath, wraps[i]);
                 }
 
                 if (TextureResolver.FindNormalMap(name, textureDir) is { } normalPath)
                 {
                     mat.WithNormal(LoadDDS(normalPath, name + "_n"), 1.0f);
-                    ApplyMirroredRepeat(mat, KnownChannel.Normal);
+                    ApplyWrap(mat, KnownChannel.Normal, wraps[i]);
                 }
             }
 
@@ -97,7 +101,7 @@ internal static class SceneMaterials
                 .UseTexture()
                 .WithPrimaryImage(LoadDDS(diffusePath, name))
                 .WithCoordinateSet(1);
-            ApplyMirroredRepeat(mat, KnownChannel.BaseColor);
+            ApplyWrap(mat, KnownChannel.BaseColor, TextureWrapMode.MIRRORED_REPEAT);
             hasTexture = true;
         }
 
@@ -152,14 +156,15 @@ internal static class SceneMaterials
     /// file and its slice count. The importer keeps such a binding by name instead of
     /// cooking the preview into a 2D .dds.
     /// </summary>
-    private static bool BindVolumeTexture(MaterialBuilder mat, string texName, string volumePath)
+    private static bool BindVolumeTexture(MaterialBuilder mat, string texName, string volumePath,
+        TextureWrapMode wrap)
     {
         var slices = Converter.ConvertVolumeToPngSlices(File.ReadAllBytes(volumePath));
         if (slices.Count == 0)
             return false;
 
         mat.WithBaseColor(ImageBuilder.From(new MemoryImage(slices[0]), texName), null);
-        ApplyMirroredRepeat(mat, KnownChannel.BaseColor);
+        ApplyWrap(mat, KnownChannel.BaseColor, wrap);
         mat.Extras = new JsonObject
         {
             ["sfVolumeTexture"] = texName + ".36t",
@@ -168,13 +173,35 @@ internal static class SceneMaterials
         return true;
     }
 
-    private static void ApplyMirroredRepeat(MaterialBuilder mat, KnownChannel channel)
+    /// <summary>
+    /// Wrap mode per texture slot from the base UVs of the draws bound to it: MIRRORED_REPEAT
+    /// when some vertex takes either axis below 0, REPEAT otherwise.
+    /// </summary>
+    private static TextureWrapMode[] WrapModes(ModelFile model, int count)
+    {
+        var mirror = new bool[count];
+        foreach (var va in VertexArrayDraws.Collect(model))
+        {
+            foreach (var (group, ia) in va.Draws)
+            {
+                int slot = Math.Clamp(group.MaterialIndex, 0, count - 1);
+                foreach (var (a, b, c) in DrawTriangles.Enumerate(ia.Indices, group.Topology, va.Vertices.Count))
+                {
+                    foreach (var v in (Vertex[])[va.Vertices[a], va.Vertices[b], va.Vertices[c]])
+                        mirror[slot] |= v.U < 0 || v.V < 0;
+                }
+            }
+        }
+        return mirror.Select(m => m ? TextureWrapMode.MIRRORED_REPEAT : TextureWrapMode.REPEAT).ToArray();
+    }
+
+    private static void ApplyWrap(MaterialBuilder mat, KnownChannel channel, TextureWrapMode wrap)
     {
         mat.UseChannel(channel)
             .UseTexture()
             .WithSampler(
-                TextureWrapMode.MIRRORED_REPEAT,
-                TextureWrapMode.MIRRORED_REPEAT,
+                wrap,
+                wrap,
                 TextureMipMapFilter.DEFAULT,
                 TextureInterpolationFilter.DEFAULT);
     }

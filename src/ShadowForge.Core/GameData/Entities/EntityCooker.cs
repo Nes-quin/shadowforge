@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ShadowForge.Formats.HDB;
 using ShadowForge.Formats.HDB.Import;
 using ShadowForge.Formats.HMB.Import;
 
@@ -8,8 +9,9 @@ public sealed record EntityCookResult(IReadOnlyList<string> Outputs, IReadOnlyLi
 
 /// <summary>
 /// Cooks an edited entity GLB back into game files: the object HDB, its DDS textures, and the
-/// motion pack. The entity's shipped motion pack, when it has one, is the template for the new
-/// pack. Output names come from the model def, falling back to "{id}_obj.hdb" and "{id}_mot.mpk".
+/// motion pack. The entity's shipped rig, when it has one, supplies the bone frames and extra
+/// euler, and its shipped motion pack is the template for the new pack. Output names come from
+/// the model def, falling back to "{id}_obj.hdb" and "{id}_mot.mpk".
 /// </summary>
 public sealed class EntityCooker
 {
@@ -35,8 +37,11 @@ public sealed class EntityCooker
         Directory.CreateDirectory(cookedDir);
         var outputs = new List<string>();
 
+        var rig = entity.Files.FirstOrDefault(f => f.Role == FileRole.Skeleton && f.Exists);
+        var rigBones = rig is null ? null : ModelCooker.Bake(ModelReader.Read(_gfs.ReadVfs(rig.VfsPath))).Bones;
+
         string hdbOut = Path.Combine(cookedDir, entity.ModelDef.ObjectHDB ?? entity.Id + "_obj.hdb");
-        ModelImporter.Import(modelPath, hdbOut, log);
+        ModelImporter.Import(modelPath, hdbOut, log, rigBones: rigBones);
         outputs.Add(hdbOut);
         outputs.AddRange(Directory.EnumerateFiles(cookedDir, "*.dds"));
 
